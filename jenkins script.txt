@@ -1,0 +1,44 @@
+pipeline {
+    agent any
+    environment {
+        // Use the Jenkins credential ID for AWS keys
+        AWS_CREDENTIALS = credentials('53e45e8e-788b-44cf-853a-e9ad83afdd0a')
+        // Use the GitHub personal access token (PAT)
+        GITHUB_TOKEN = credentials('68b176bc-0939-4f2e-8083-b0a9ddfdb55e')
+    }
+    stages {
+        stage('Clone Repository') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: '68b176bc-0939-4f2e-8083-b0a9ddfdb55e', usernameVariable: 'GITHUB_USERNAME', passwordVariable: 'GITHUB_TOKEN_PSW')]) {
+                        // Construct the GitHub HTTPS URL with the token for authentication
+                        def repoUrl = "https://github.com/codewithakash44/S3_Data_Files.git"
+                        def gitUrl = "https://${GITHUB_USERNAME}:${GITHUB_TOKEN_PSW}@${repoUrl.substring(8)}"
+                        
+                        // Clone the repository using the HTTPS URL with the GitHub token
+                        sh "git clone ${gitUrl}"
+                    }
+                }
+            }
+        }
+        stage('Upload to S3') {
+            steps {
+                script {
+                    // Extract AWS credentials
+                    def awsAccessKeyId = env.AWS_ACCESS_KEY_ID
+                    def awsSecretAccessKey = env.AWS_SECRET_ACCESS_KEY
+
+                    // Configure AWS CLI and upload to S3
+                    sh '''
+                    # Configure AWS CLI with Jenkins credentials
+                    aws configure set aws_access_key_id ${AWS_ACCESS_KEY_ID}
+                    aws configure set aws_secret_access_key ${AWS_SECRET_ACCESS_KEY}
+
+                    # Sync repository files to the S3 bucket (exclude .git directory)
+                    aws s3 sync . s3://customer-data12345 --exclude ".git/*"
+                    '''
+                }
+            }
+        }
+    }
+}
