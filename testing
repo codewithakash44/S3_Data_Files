@@ -1,6 +1,1 @@
-AKIA3FLDX4XJSUCVINZM
-
-6eE1Q+wfKe9nGJvQ2H9JD3owDX3PLE2yPehm4/Ox
-
-
 ssh-keygen -t rsa -b 4096 -C "akashd.rathod4@gmail.com"
