@@ -1,0 +1,59 @@
+pipeline {
+    agent any
+ 
+    parameters {
+        string(name: 'COMMIT_ID', defaultValue: '', description: 'The commit ID to cherry-pick')
+    }
+ 
+    environment {
+        // Define your branches
+        QA_BRANCH = 'qa'
+        MASTER_BRANCH = 'master'
+        // Replace with your repository URL
+        REPO_URL = 'git@github.com:codewithakash44/S3_Data_Files.git'
+        // Replace with the ID of your credentials
+        CREDENTIALS_ID = '9b26dfba-2d22-4102-9718-ee80595c2d31'
+    }
+ 
+    stages {
+        stage('Checkout') {
+            steps {
+                // Checkout the repository using the credentials
+                git credentialsId: "${env.CREDENTIALS_ID}", url: "${env.REPO_URL}"
+            }
+        }
+ 
+        stage('Cherry-pick commit') {
+            steps {
+                script {
+                    // Ensure we're on the QA branch
+                    sh "git checkout ${env.QA_BRANCH}"
+                    // Cherry-pick the commit
+                    sh "git cherry-pick ${params.COMMIT_ID}"
+                }
+            }
+        }
+ 
+        stage('Push to master') {
+            steps {
+                script {
+                    // Checkout the master branch
+                    sh "git checkout ${env.MASTER_BRANCH}"
+                    // Merge the QA branch into master
+                    sh "git merge ${env.QA_BRANCH}"
+                    // Push changes to the master branch
+                    sh "git push origin ${env.MASTER_BRANCH}"
+                }
+            }
+        }
+    }
+ 
+    post {
+        success {
+            echo 'Cherry-pick and push to master branch succeeded.'
+        }
+        failure {
+            echo 'The process failed. Please check the logs for details.'
+        }
+    }
+}
