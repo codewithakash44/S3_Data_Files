@@ -1,0 +1,108 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'COMMIT_ID', defaultValue: '', description: 'The commit ID from the QA branch to cherry-pick into master')
+    }
+
+    environment {
+        QA_BRANCH = 'qa'
+        MASTER_BRANCH = 'master'
+        REPO_URL = 'git@github.com:codewithakash44/S3_Data_Files.git'
+        CREDENTIALS_ID = '9b26dfba-2d22-4102-9718-ee80595c2d31'
+    }
+
+    stages {
+        stage('Checkout Master Branch') {
+            steps {
+                script {
+                    echo "Checking out the master branch..."
+                    checkout([$class: 'GitSCM', 
+                              branches: [[name: "*/${env.MASTER_BRANCH}"]], 
+                              userRemoteConfigs: [[credentialsId: env.CREDENTIALS_ID, url: env.REPO_URL]]])
+                }
+            }
+        }
+
+        stage('Fetch QA Branch') {
+            steps {
+                script {
+                    echo "Fetching the latest changes from the QA branch..."
+                    sh """
+                    git fetch origin ${env.QA_BRANCH}:${env.QA_BRANCH}
+                    """
+                }
+            }
+        }
+
+        stage('Pre-Cherry-pick Checks') {
+            steps {
+                script {
+                    sh """
+                    echo "Setting up Git configuration..."
+                    git config --global core.autocrlf input
+                    git reset --hard
+                    git clean -fdx
+
+                    echo "Verifying provided commit ID..."
+                    if [ -z "${params.COMMIT_ID}" ]; then
+                        echo "ERROR: Commit ID is required but not provided."
+                        exit 1
+                    fi
+                    """
+                }
+            }
+        }
+
+        stage('Cherry-pick Commit') {
+            steps {
+                script {
+                    echo "Attempting to cherry-pick commit ${params.COMMIT_ID} from QA branch to master branch..."
+                    try {
+                        sh """
+                        # Ensure we are on the master branch
+                        git checkout ${env.MASTER_BRANCH}
+
+                        # Perform the cherry-pick from QA branch
+                        git cherry-pick origin/${env.QA_BRANCH} ${params.COMMIT_ID} || (
+                            # Handle empty cherry-pick (commit already applied)
+                            if git diff --cached --quiet; then
+                                echo "Cherry-pick resulted in no changes (empty commit)."
+                                git cherry-pick --abort
+                                exit 0
+                            else
+                                echo "Cherry-pick failed due to conflicts."
+                                git cherry-pick --abort
+                                exit 1
+                            fi
+                        )
+                        """
+                    } catch (Exception e) {
+                        error "Cherry-pick failed. Please check logs for details."
+                    }
+                }
+            }
+        }
+
+        stage('Push Changes to Master') {
+            steps {
+                script {
+                    echo "Pushing changes to the remote master branch..."
+                    sh """
+                    git push origin ${env.MASTER_BRANCH}
+                    """
+                    echo "Changes successfully pushed to master branch."
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Cherry-pick and push to master branch succeeded.'
+        }
+        failure {
+            echo 'The process failed. Please check the logs for details.'
+        }
+    }
+}
