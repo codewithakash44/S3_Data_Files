@@ -1,4 +1,5 @@
 ### V.1.1
+### V.1.2 --- Added rebase to master branch 
 
 pipeline {
     agent any
@@ -91,6 +92,10 @@ pipeline {
                 script {
                     echo "Pushing changes to the remote master branch..."
                     sh """
+                    # Pull the latest changes from the remote master branch to avoid non-fast-forward errors
+                    git pull origin ${env.MASTER_BRANCH} --rebase
+
+                    # Now push the changes
                     git push origin ${env.MASTER_BRANCH}
                     """
                     echo "Changes successfully pushed to master branch."
