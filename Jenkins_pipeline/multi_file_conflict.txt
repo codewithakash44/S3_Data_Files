@@ -1,0 +1,70 @@
+pipeline {
+    agent any
+
+    environment {
+        GIT_REPO = 'git@github.com:codewithakash44/S3_Data_Files.git' // Replace with your GitHub repo URL
+        BRANCH_NAME = 'master' // Target branch where files will be cherry-picked
+        SOURCE_BRANCH = 'qa' // Branch where the commit is located
+        commitID = '' // Define commitID as an environment variable
+    }
+
+    stages {
+        stage('Checkout Master Branch') {
+            steps {
+                echo "Checking out the master branch..."
+                git url: GIT_REPO, branch: BRANCH_NAME
+            }
+        }
+        
+        stage('Fetch QA Branch') {
+            steps {
+                echo "Fetching the latest changes from the QA branch..."
+                sh "git fetch origin ${SOURCE_BRANCH}:${SOURCE_BRANCH}"
+            }
+        }
+
+        stage('Select Files to Cherry-Pick') {
+            steps {
+                script {
+                    // Get commit ID from user input
+                    commitID = input message: 'Enter the commit ID to cherry-pick from QA:', parameters: [string(defaultValue: '', description: 'Commit ID', name: 'commitID')]
+                    
+                    // List the files in the commit from the QA branch
+                    def filesInCommit = sh(script: "git diff-tree --no-commit-id --name-only -r ${commitID}", returnStdout: true).trim().split("\n")
+                    
+                    // Prompt user to select files
+                    echo "Files in Commit: ${filesInCommit}"
+                    def selectedFiles = input message: 'Enter the files you want to cherry-pick (comma separated):', parameters: [string(defaultValue: '', description: 'List of files to cherry-pick', name: 'files')]
+                    
+                    // Convert the comma-separated list into an array
+                    def filesArray = selectedFiles.split(',')
+                    echo "Selected Files: ${filesArray}"
+                    
+                    // Cherry-pick each file selected
+                    filesArray.each { file ->
+                        echo "Cherry-picking ${file}..."
+                        sh "git checkout ${SOURCE_BRANCH} -- ${file}"
+                    }
+                }
+            }
+        }
+
+        stage('Commit and Push Changes') {
+            steps {
+                script {
+                    // Commit and push the selected files
+                    echo "Committing and pushing changes..."
+                    sh "git add ."
+                    sh "git commit -m 'Cherry-pick selected files from commit ${commitID}'"
+                    sh "git push origin ${BRANCH_NAME}"
+                }
+            }
+        }
+
+        stage('Notify Success') {
+            steps {
+                echo "Cherry-pick completed successfully and changes pushed to the master branch."
+            }
+        }
+    }
+}
